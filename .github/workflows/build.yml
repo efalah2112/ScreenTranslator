@@ -1,5 +1,7 @@
 name: Build APK
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,7 +16,7 @@ jobs:
         with:
           gradle-version: 8.7
       - run: gradle -p ScreenTranslator assembleDebug
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: app-debug
-          path: ScreenTranslator/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: build-${{ github.run_number }}
+          files: ScreenTranslator/app/build/outputs/apk/debug/app-debug.apk
