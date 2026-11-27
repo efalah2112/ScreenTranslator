@@ -1064,8 +1064,32 @@ async function sendMakerError(client, title, error) {
     console.error(`[Maker] ${title}:`, error);
 }
 
+async function migrateLegacyPremiumTokens(db) {
+    if (!tokenVault.isConfigured()) return;
+
+    const allKeys = await db.all();
+    for (const entry of allKeys) {
+        const value = entry.value;
+        if (!value || typeof value !== 'object') continue;
+
+        if (entry.id.startsWith('premium_user_') && value.botToken) {
+            delete value.botToken;
+            await db.set(entry.id, value);
+        } else if (entry.id.startsWith('premium_temp_') && value.botToken && !value.botTokenEncrypted) {
+            value.botTokenEncrypted = tokenVault.encryptToken(value.botToken);
+            delete value.botToken;
+            await db.set(entry.id, value);
+        }
+    }
+}
+
 function setupMakerSystem(client, bots, db, config, fs) {
     if (client.user.id === MAKER_BOT_ID) {
+        if (!client._premiumTokenMigration) {
+            client._premiumTokenMigration = migrateLegacyPremiumTokens(db).catch((error) => {
+                console.error('[Security] فشل ترحيل توكنات Premium القديمة:', error.message);
+            });
+        }
         if (!client._premiumExpiryTimer) {
             client._premiumExpiryTimer = setInterval(() => {
                 checkAllPremiumExpiries(client, db).catch((error) => {
