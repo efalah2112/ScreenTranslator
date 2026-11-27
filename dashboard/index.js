@@ -133,7 +133,10 @@ function setupDashboard(app, { bots, db }) {
   };
   const getAllPremiumRecords = async () => {
     const rows = await db.all();
-    return rows.filter(row => row.id.startsWith("premium_user_") && row.value && row.value.active && Number(row.value.endDate) > Date.now()).map(row => row.value);
+    if (!Array.isArray(rows)) throw new Error("QuickDB all() did not return an array");
+    return rows
+      .filter(row => row && String(row.id || "").startsWith("premium_user_") && row.value && row.value.active && Number(row.value.endDate) > Date.now())
+      .map(row => row.value);
   };
   const getBot = (id) => bots.find(client => client.user && client.user.id === id);
   const isDeveloper = (userId) => developerIds.has(userId);
