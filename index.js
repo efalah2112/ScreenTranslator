@@ -1,9 +1,10 @@
- const express = require("express");
+require("dotenv").config();
+const express = require("express");
 const app = express();
-const port = 2022;
+const port = Number(process.env.PORT || process.env.SERVER_PORT) || 2022;
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.redirect("/dashboard");
 });
 
 const fs = require("fs");
@@ -2595,6 +2596,9 @@ const bots = botTokens.map((token, index) => {
 
   return client;
 });
+
+// ========== WEB DASHBOARD ==========
+require("./dashboard")(app, { bots, db, config });
 
 app.listen(port, () => {
   console.log(`🌐 Server running on port ${port}`);
