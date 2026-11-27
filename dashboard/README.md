@@ -32,7 +32,7 @@ Sessions are stored server-side in SQLite; the browser receives only an HTTP-onl
 
 ## Access rules
 
-- Normal: the signed-in user must own the Discord guild or have Manage Server / Administrator permission. If the selected bot is already in the guild, the dashboard offers management; otherwise it offers a bot invite. Guilds without sufficient permission are labelled "لا توجد صلاحية".
+- Normal: the signed-in user must own the Discord application for the selected bot, and must own the Discord guild or have Manage Server / Administrator permission. Both checks are repeated server-side. If the selected bot is already in the guild, the dashboard offers management; otherwise it offers a bot invite. Guilds without sufficient permission are labelled "لا توجد صلاحية".
 - Premium: only the guild attached to the user's active Premium subscription is listed.
 - Developer: the maker owner and IDs configured in \`DASHBOARD_DEVELOPER_IDS\` can inspect all normal-bot guilds and active Premium subscriptions without Discord guild permissions.
 
