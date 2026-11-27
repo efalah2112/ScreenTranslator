@@ -142,7 +142,7 @@ function setupDashboard(app, { bots, db }) {
     try {
       const application = await client.application.fetch();
       const owner = application.owner;
-      const ownerId = owner && (owner.id || owner.ownerId);
+      const ownerId = owner && (owner.ownerId || owner.id);
       if (ownerId) client._dashboardOwnerId = ownerId;
       return ownerId || null;
     } catch {
