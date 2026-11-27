@@ -34,6 +34,14 @@ const tokenVault = require("./handlers/modules/tokenVault");
 // automatically once TOKEN_ENCRYPTION_KEY is configured.
 config.tokens = tokenVault.loadTokens(config);
 
+// Production bot tokens belong in hosting environment secrets, not this public repository.
+// BOT_TOKENS accepts a comma-separated list of bot tokens.
+const environmentTokens = (process.env.BOT_TOKENS || '')
+    .split(',')
+    .map(token => token.trim())
+    .filter(Boolean);
+config.tokens = [...new Set([...(config.tokens || []), ...environmentTokens])];
+
 // ========== MAKER SYSTEM ==========
 const maker = require("./handlers/modules/maker");
 
