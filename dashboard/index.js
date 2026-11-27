@@ -231,7 +231,7 @@ function setupDashboard(app, { bots, db }) {
     try {
       const records = await getAllPremiumRecords();
       const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
-      const normalBots = bots.filter(client => client.user && client.isReady() && client.user.id !== maker.MAKER_BOT_ID && !premiumBotIds.has(client.user.id));
+      const normalBots = bots.filter(client => client.user && client.isReady() && (isDeveloper(req.session.user.id) || (client.user.id !== maker.MAKER_BOT_ID && !premiumBotIds.has(client.user.id))));
       const visibleBots = [];
       for (const client of normalBots) {
         const ownerId = await getBotOwnerId(client);
@@ -247,17 +247,7 @@ function setupDashboard(app, { bots, db }) {
       const mode = requestedMode === "premium" ? "premium" : requestedMode === "developer" ? "developer" : "normal";
       const developer = isDeveloper(req.session.user.id);
       const records = await getAllPremiumRecords();
-      if (mode === "developer") {
-        if (!developer) return json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
-        const developerGuilds = bots.filter(client => client.user && client.isReady()).flatMap(client =>
-          [...client.guilds.cache.values()].map(guild => ({
-            id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }),
-            botId: client.user.id, botName: client.user.username, status: "manage",
-            plan: records.some(record => record.botId === client.user.id && record.guildId === guild.id) ? "Premium" : "Developer"
-          }))
-        );
-        return json(res, 200, { mode, guilds: developerGuilds, developer: true });
-      }
+      if (mode === "developer" && !developer) return json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
       if (mode === "premium") {
         const owned = records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
         const guilds = owned.map(record => {
@@ -272,23 +262,11 @@ function setupDashboard(app, { bots, db }) {
       const botId = String(req.query.botId || "");
       const bot = getBot(botId);
       const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
-      if (!bot || (!developer && (bot.user.id === maker.MAKER_BOT_ID || premiumBotIds.has(bot.user.id)))) {
+      if (!bot || !bot.isReady() || (!developer && (bot.user.id === maker.MAKER_BOT_ID || premiumBotIds.has(bot.user.id)))) {
         return json(res, 400, { error: "البوت العادي المحدد غير متاح." });
       }
       if (!developer && await getBotOwnerId(bot) !== req.session.user.id) {
         return json(res, 403, { error: "هذا البوت غير مملوك لحسابك." });
-      }
-
-      if (developer) {
-        const guilds = [...bot.guilds.cache.values()].map(guild => ({
-          id: guild.id,
-          name: guild.name,
-          icon: guild.iconURL({ size: 128 }),
-          manageable: true,
-          botPresent: true,
-          status: "manage"
-        }));
-        return json(res, 200, { mode, guilds, developer: true });
       }
 
       const userGuilds = await getUserGuilds(req);
@@ -340,12 +318,10 @@ function setupDashboard(app, { bots, db }) {
         if (!developer && await getBotOwnerId(bot) !== req.session.user.id) {
           return json(res, 403, { error: "هذا البوت غير مملوك لحسابك." });
         }
-        if (!developer) {
-          const userGuilds = await getUserGuilds(req);
-          const membership = userGuilds.find(item => item.id === guildId);
-          if (!membership || !hasGuildManagement(membership.permissions, membership.owner)) {
-            return json(res, 403, { error: "لا توجد صلاحية لإدارة هذا السيرفر." });
-          }
+        const userGuilds = await getUserGuilds(req);
+        const membership = userGuilds.find(item => item.id === guildId);
+        if (!membership || !hasGuildManagement(membership.permissions, membership.owner)) {
+          return json(res, 403, { error: "لا توجد صلاحية لإدارة هذا السيرفر." });
         }
       }
       json(res, 200, { allowed: true, guild: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }) }, bot: { id: bot.user.id, username: bot.user.username }, developer });
