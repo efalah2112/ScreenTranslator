@@ -885,6 +885,11 @@ async function addPremiumUser(userId, data, db, client) {
         planLabel,
         botId,
         guildId,
+        // Dashboard ownership is granted to the buyer for the purchased bot's guild.
+        dashboardOwnerId: userId,
+        dashboardGuildId: guildId,
+        dashboardRole: 'owner',
+        dashboardAccessActive: true,
         price,
         startDate: Date.now(),
         endDate,
