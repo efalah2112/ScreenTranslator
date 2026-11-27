@@ -1018,17 +1018,33 @@ async function handleMakerInteraction(i, client, config, db, fs) {
             return i.reply({ content: '❌ رسالة البنك هذه سبق استخدامها ولا يمكن اعتمادها مرة أخرى.', ephemeral: true });
         }
 
+        // Persist a processing state before doing async work to prevent double-click races.
+        pending.status = 'approving';
+        pending.reviewedBy = i.user.id;
+        pending.reviewStartedAt = Date.now();
+        await db.set(`premium_temp_${targetUserId}`, pending);
+
         let botToken;
         try {
             botToken = tokenVault.decryptToken(pending.botTokenEncrypted);
         } catch (error) {
+            pending.status = 'pending_review';
+            await db.set(`premium_temp_${targetUserId}`, pending);
             console.error('[Security] تعذر فك تشفير توكن طلب Premium:', error.message);
             return i.reply({ content: '❌ تعذر فك تشفير بيانات الطلب. لم يتم تفعيل الاشتراك.', ephemeral: true });
         }
 
         const premiumData = { ...pending, botToken };
         delete premiumData.botTokenEncrypted;
-        const userData = await addPremiumUser(targetUserId, premiumData, db, client);
+        let userData;
+        try {
+            userData = await addPremiumUser(targetUserId, premiumData, db, client);
+        } catch (error) {
+            pending.status = 'pending_review';
+            await db.set(`premium_temp_${targetUserId}`, pending);
+            console.error('[Premium] فشل تفعيل الاشتراك بعد المراجعة:', error.message);
+            return i.reply({ content: '❌ تعذر تفعيل الاشتراك. بقي الطلب للمراجعة ولم يتم إغلاق التكت.', ephemeral: true });
+        }
         await db.set(`premium_payment_message_${pending.paymentMessageId}`, {
             userId: targetUserId,
             approvedBy: i.user.id,
