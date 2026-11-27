@@ -624,6 +624,8 @@ function setupDashboard(app, { bots, db }) {
         .setTitle(String(title || (type === "tickets" ? "قسم التكتات والمبيعات" : type === "support" ? "مركز الدعم" : "التقديم")).slice(0, 256))
         .setDescription(String(description || "اختر الخدمة المناسبة من الأزرار بالأسفل.").slice(0, 4000))
         .setFooter({ text: access.guild.name }).setTimestamp();
+      const panelImage = await db.get("image_" + access.guildId);
+      if (panelImage && /^https:\/\//i.test(panelImage)) embed.setImage(panelImage);
       const rows = [];
       if (type === "tickets") {
         const row = new ActionRowBuilder().addComponents(
