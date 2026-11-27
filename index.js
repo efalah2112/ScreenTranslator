@@ -2533,6 +2533,8 @@ const bots = botTokens.map((token, index) => {
       interaction.customId === 'premium_transfer_btn' ||
       interaction.customId === 'premium_cancel' ||
       interaction.customId.startsWith('premium_renew_') ||
+      interaction.customId.startsWith('premium_payment_approve_') ||
+      interaction.customId.startsWith('premium_payment_reject_') ||
       interaction.customId.startsWith('delete_token_')
     );
     const isPremiumModal = interaction.isModalSubmit() &&
