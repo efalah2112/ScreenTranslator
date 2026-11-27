@@ -1,6 +1,7 @@
- const express = require("express");
+require("dotenv").config();
+const express = require("express");
 const app = express();
-const port = 2022;
+const port = Number(process.env.PORT || process.env.SERVER_PORT) || 2022;
 
 app.get("/", (req, res) => {
   res.redirect("/dashboard");
