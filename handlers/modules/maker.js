@@ -16,6 +16,7 @@ const {
 } = require('discord.js');
 
 const fs = require('fs');
+const tokenVault = require('./tokenVault');
 
 // ===== إعدادات البريميوم =====
 const PREMIUM_CONFIG = {
@@ -489,31 +490,28 @@ async function handleAddToken(i, config, fs) {
     const duration = i.options.getString('duration') || 'month';
 
     try {
-        const configFile = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-        if (configFile.tokens.includes(token)) {
+        const added = tokenVault.addToken(token);
+        if (!added) {
             return i.reply({ content: '❌ هذا التوكن موجود بالفعل!', ephemeral: true });
         }
-        configFile.tokens.push(token);
-        fs.writeFileSync('./config.json', JSON.stringify(configFile, null, 2));
-        await i.reply({ content: `✅ تم إضافة التوكن بنجاح! المدة: ${duration}`, ephemeral: true });
+        await i.reply({ content: `✅ تم إضافة التوكن بشكل مشفر بنجاح! المدة: ${duration}`, ephemeral: true });
     } catch (err) {
-        await i.reply({ content: '❌ حدث خطأ أثناء إضافة التوكن.', ephemeral: true });
+        console.error('[Security] تعذر إضافة التوكن:', err.message);
+        await i.reply({ content: '❌ تعذر إضافة التوكن. تأكد من ضبط TOKEN_ENCRYPTION_KEY في متغيرات الاستضافة.', ephemeral: true });
     }
 }
 
 async function handleRemoveToken(i, config, fs) {
     const token = i.options.getString('token');
     try {
-        const configFile = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-        const index = configFile.tokens.indexOf(token);
-        if (index === -1) {
+        const removed = tokenVault.removeToken(token);
+        if (!removed) {
             return i.reply({ content: '❌ التوكن غير موجود!', ephemeral: true });
         }
-        configFile.tokens.splice(index, 1);
-        fs.writeFileSync('./config.json', JSON.stringify(configFile, null, 2));
-        await i.reply({ content: '✅ تم حذف التوكن بنجاح!', ephemeral: true });
+        await i.reply({ content: '✅ تم حذف التوكن من التخزين المشفر.', ephemeral: true });
     } catch (err) {
-        await i.reply({ content: '❌ حدث خطأ أثناء حذف التوكن.', ephemeral: true });
+        console.error('[Security] تعذر حذف التوكن:', err.message);
+        await i.reply({ content: '❌ تعذر حذف التوكن. تأكد من ضبط TOKEN_ENCRYPTION_KEY في متغيرات الاستضافة.', ephemeral: true });
     }
 }
 
@@ -688,6 +686,9 @@ async function handlePremiumPlanSelection(i, db) {
 }
 
 async function handlePremiumBuyModal(i, db, client) {
+    if (!tokenVault.isConfigured()) {
+        return i.reply({ content: '❌ نظام الحماية غير مفعّل. يرجى التواصل مع الإدارة لتجهيز مفتاح تشفير التوكنات.', ephemeral: true });
+    }
     const botToken = i.fields.getTextInputValue('bot_token');
     const botId = i.fields.getTextInputValue('bot_id');
     const guildId = i.fields.getTextInputValue('guild_id');
@@ -723,7 +724,7 @@ async function handlePremiumBuyModal(i, db, client) {
         userId: i.user.id,
         plan: planId,
         planLabel: plan.label,
-        botToken,
+        botTokenEncrypted: tokenVault.encryptToken(botToken),
         botId,
         guildId,
         price,
@@ -755,7 +756,16 @@ async function handlePremiumBuyModal(i, db, client) {
         const tempData2 = await db.get(`premium_temp_${i.user.id}`);
         if (!tempData2) return;
 
-        const userData = await addPremiumUser(i.user.id, tempData2, db, client);
+        let premiumData;
+        try {
+            premiumData = { ...tempData2, botToken: tokenVault.decryptToken(tempData2.botTokenEncrypted) };
+            delete premiumData.botTokenEncrypted;
+        } catch (error) {
+            console.error('[Security] تعذر فك تشفير توكن طلب Premium:', error.message);
+            await ticketChannel.send('❌ تعذر التحقق من بيانات البوت بشكل آمن. يرجى التواصل مع الإدارة.');
+            return;
+        }
+        const userData = await addPremiumUser(i.user.id, premiumData, db, client);
 
         const confirmEmbed = new EmbedBuilder()
             .setTitle(' تم تأكيد الدفع بنجاح!')
@@ -886,13 +896,15 @@ async function handlePremiumList(i, db) {
 
 async function addPremiumUser(userId, data, db, client) {
     const { plan, planLabel, botToken, botId, guildId, price, days } = data;
-    const endDate = Date.now() + (days * 24 * 60 * 60 * 1000);
 
+    // Persist the token only in the encrypted vault; never in the subscription DB.
+    tokenVault.addToken(botToken);
+
+    const endDate = Date.now() + (days * 24 * 60 * 60 * 1000);
     const userData = {
         userId,
         plan,
         planLabel,
-        botToken,
         botId,
         guildId,
         price,
@@ -908,17 +920,6 @@ async function addPremiumUser(userId, data, db, client) {
     };
 
     await db.set(`premium_user_${userId}`, userData);
-
-    try {
-        const configFile = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-        if (!configFile.tokens.includes(botToken)) {
-            configFile.tokens.push(botToken);
-            fs.writeFileSync('./config.json', JSON.stringify(configFile, null, 2));
-        }
-    } catch (err) {
-        console.error('فشل تحديث config.json:', err);
-    }
-
     return userData;
 }
 
