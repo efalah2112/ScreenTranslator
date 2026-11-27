@@ -207,7 +207,8 @@ function setupDashboard(app, { bots, db }) {
     res.status(204).end();
   }));
 
-  app.get("/dashboard/api/me", requireUser, async (req, res) => {
+  app.get("/dashboard/api/me", async (req, res) => {
+    if (!req.session.user) return json(res, 200, { authenticated: false });
     try {
       const userId = req.session.user.id;
       const records = await getAllPremiumRecords();
