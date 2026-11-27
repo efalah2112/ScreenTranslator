@@ -628,21 +628,33 @@ function setupDashboard(app, { bots, db }) {
       if (panelImage && /^https:\/\//i.test(panelImage)) embed.setImage(panelImage);
       const rows = [];
       if (type === "tickets") {
+        const [shopCat, shopAdmin, auctionCat, auctionAdmin, orderCat, orderAdmin, rolesCat, rolesAdmin, buyRoles] = await Promise.all([
+          db.get("catbuy_shop_" + access.guildId), db.get("shopad_" + access.guildId),
+          db.get("catbuy_auction_" + access.guildId), db.get("auctionad_" + access.guildId),
+          db.get("catbuy_order_" + access.guildId), db.get("orderad_" + access.guildId),
+          db.get("roles_cat_" + access.guildId), db.get("roles_admin_" + access.guildId),
+          db.get("buy_roles_" + access.guildId)
+        ]);
         const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("buy_shop").setLabel("شراء متجر").setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId("ticket-auction").setLabel("تكت مزاد").setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId("ticket-order").setLabel("تكت طلبات").setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId("ticket-roles").setLabel("شراء رتبة").setStyle(ButtonStyle.Secondary)
+          new ButtonBuilder().setCustomId("buy_shop").setLabel("شراء متجر").setStyle(ButtonStyle.Secondary).setDisabled(!shopCat || !shopAdmin),
+          new ButtonBuilder().setCustomId("ticket-auction").setLabel("تكت مزاد").setStyle(ButtonStyle.Secondary).setDisabled(!auctionCat || !auctionAdmin),
+          new ButtonBuilder().setCustomId("ticket-order").setLabel("تكت طلبات").setStyle(ButtonStyle.Secondary).setDisabled(!orderCat || !orderAdmin),
+          new ButtonBuilder().setCustomId("ticket-roles").setLabel("شراء رتبة").setStyle(ButtonStyle.Secondary).setDisabled(!rolesCat || !rolesAdmin || !Array.isArray(buyRoles) || !buyRoles.length)
         );
         rows.push(row);
       } else if (type === "support") {
+        const [supportCat, supportAdmin, scamAdmin] = await Promise.all([
+          db.get("support_cat_" + access.guildId), db.get("support_admin_" + access.guildId), db.get("scam_admin_" + access.guildId)
+        ]);
         rows.push(new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("ticket-support").setLabel("الدعم الفني").setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId("ticket-scam").setLabel("التشهير والبلاغات").setStyle(ButtonStyle.Danger)
+          new ButtonBuilder().setCustomId("ticket-support").setLabel("الدعم الفني").setStyle(ButtonStyle.Primary).setDisabled(!supportCat || !supportAdmin),
+          new ButtonBuilder().setCustomId("ticket-scam").setLabel("التشهير والبلاغات").setStyle(ButtonStyle.Danger).setDisabled(!supportCat || !(scamAdmin || supportAdmin))
         ));
       } else {
         const category = await db.get("apply_ticketcat_" + access.guildId);
+        const adminRoom = await db.get("apply_admin_" + access.guildId);
         const questions = await db.get("apply_qs_" + access.guildId) || {};
+        if (!adminRoom) return json(res, 400, { error: "حدد روم استقبال التقديمات للإدارة أولاً." });
         if (applicationType === "ticket" && !category) return json(res, 400, { error: "حدد كاتيغوري تكت التقديم أولاً." });
         if (applicationType !== "ticket" && !Object.values(questions).some(Boolean)) return json(res, 400, { error: "أضف أسئلة التقديم أولاً." });
         if (await db.get("apply_disabled_" + access.guildId)) return json(res, 400, { error: "نظام التقديم معطل حالياً." });
