@@ -250,7 +250,7 @@ function setupDashboard(app, { bots, db }) {
         }
         availableBots = visibleBots;
       }
-      json(res, 200, { bots: availableBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 96 }), guildCount: client.guilds.cache.size })) });
+      json(res, 200, { bots: availableBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 128 }), guildCount: client.guilds.cache.size })) });
     } catch (error) {
       console.error("[Dashboard bot list]", error && (error.stack || error.message) || error);
       json(res, 500, { error: "تعذر تحميل البوتات. راجع سجل الاستضافة لمعرفة سبب الخطأ." });
