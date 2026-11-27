@@ -136,6 +136,19 @@ function setupDashboard(app, { bots, db }) {
   };
   const getBot = (id) => bots.find(client => client.user && client.user.id === id);
   const isDeveloper = (userId) => developerIds.has(userId);
+  const getBotOwnerId = async (client) => {
+    if (!client) return null;
+    if (client._dashboardOwnerId) return client._dashboardOwnerId;
+    try {
+      const application = await client.application.fetch();
+      const owner = application.owner;
+      const ownerId = owner && (owner.id || owner.ownerId);
+      if (ownerId) client._dashboardOwnerId = ownerId;
+      return ownerId || null;
+    } catch {
+      return null;
+    }
+  };
 
   app.get("/dashboard", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
   app.get("/dashboard/login", (req, res) => {
@@ -204,7 +217,12 @@ function setupDashboard(app, { bots, db }) {
       const records = await getAllPremiumRecords();
       const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
       const normalBots = bots.filter(client => client.user && client.isReady() && client.user.id !== maker.MAKER_BOT_ID && !premiumBotIds.has(client.user.id));
-      json(res, 200, { bots: normalBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 96 }), guildCount: client.guilds.cache.size })) });
+      const visibleBots = [];
+      for (const client of normalBots) {
+        const ownerId = await getBotOwnerId(client);
+        if (isDeveloper(req.session.user.id) || ownerId === req.session.user.id) visibleBots.push(client);
+      }
+      json(res, 200, { bots: visibleBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 96 }), guildCount: client.guilds.cache.size })) });
     } catch (error) { json(res, 500, { error: "تعذر تحميل البوتات." }); }
   });
 
@@ -231,6 +249,9 @@ function setupDashboard(app, { bots, db }) {
       const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
       if (!bot || bot.user.id === maker.MAKER_BOT_ID || premiumBotIds.has(bot.user.id)) {
         return json(res, 400, { error: "البوت العادي المحدد غير متاح." });
+      }
+      if (!developer && await getBotOwnerId(bot) !== req.session.user.id) {
+        return json(res, 403, { error: "هذا البوت غير مملوك لحسابك." });
       }
 
       if (developer) {
@@ -288,6 +309,9 @@ function setupDashboard(app, { bots, db }) {
         const records = await getAllPremiumRecords();
         const isPremiumBot = records.some(record => record.botId === botId);
         if (bot.user.id === maker.MAKER_BOT_ID || isPremiumBot) return json(res, 403, { error: "هذا البوت ليس ضمن البوتات العادية." });
+        if (!developer && await getBotOwnerId(bot) !== req.session.user.id) {
+          return json(res, 403, { error: "هذا البوت غير مملوك لحسابك." });
+        }
         if (!developer) {
           const userGuilds = await getUserGuilds(req);
           const membership = userGuilds.find(item => item.id === guildId);
