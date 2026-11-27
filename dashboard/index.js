@@ -101,9 +101,31 @@ function setupDashboard(app, { bots, db }) {
     if (!response.ok) throw new Error("Discord API returned " + response.status);
     return response.json();
   };
+  const ensureAccessToken = async (req) => {
+    if (req.session.tokenExpiresAt > Date.now() + 30000) return req.session.accessToken;
+    if (!req.session.refreshToken) throw new Error("Discord session expired");
+    const refreshBody = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: req.session.refreshToken
+    });
+    const refreshed = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: refreshBody
+    });
+    if (!refreshed.ok) throw new Error("Discord session refresh failed");
+    const tokens = await refreshed.json();
+    req.session.accessToken = tokens.access_token;
+    req.session.refreshToken = tokens.refresh_token;
+    req.session.tokenExpiresAt = Date.now() + tokens.expires_in * 1000;
+    return req.session.accessToken;
+  };
   const getUserGuilds = async (req) => {
+    const accessToken = await ensureAccessToken(req);
     if (!req.session.guilds || req.session.guildsFetchedAt < Date.now() - 60000) {
-      req.session.guilds = await discordFetch(DISCORD_API + "/users/@me/guilds", req.session.accessToken);
+      req.session.guilds = await discordFetch(DISCORD_API + "/users/@me/guilds", accessToken);
       req.session.guildsFetchedAt = Date.now();
     }
     return req.session.guilds;
@@ -192,7 +214,9 @@ function setupDashboard(app, { bots, db }) {
       const developer = isDeveloper(req.session.user.id);
       const records = await getAllPremiumRecords();
       if (mode === "premium") {
-        const owned = records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
+        const owned = isDeveloper(req.session.user.id)
+        ? records
+        : records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
         const guilds = owned.map(record => {
           const bot = getBot(record.botId);
           const guild = bot && bot.guilds.cache.get(record.guildId);
@@ -210,14 +234,15 @@ function setupDashboard(app, { bots, db }) {
       }
 
       if (developer) {
-        const all = new Map();
-        for (const client of bots) {
-          for (const guild of client.guilds.cache.values()) {
-            if (guild.id === maker.TARGET_GUILD_ID) continue;
-            all.set(guild.id, { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), botPresent: client.guilds.cache.has(guild.id), manageable: true, status: client.guilds.cache.has(guild.id) ? "manage" : "invite" });
-          }
-        }
-        return json(res, 200, { mode, guilds: [...all.values()], developer: true });
+        const guilds = [...bot.guilds.cache.values()].map(guild => ({
+          id: guild.id,
+          name: guild.name,
+          icon: guild.iconURL({ size: 128 }),
+          manageable: true,
+          botPresent: true,
+          status: "manage"
+        }));
+        return json(res, 200, { mode, guilds, developer: true });
       }
 
       const userGuilds = await getUserGuilds(req);
