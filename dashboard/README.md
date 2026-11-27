@@ -14,7 +14,7 @@ Configure these environment variables in the hosting provider (never commit thei
 - \`DASHBOARD_SESSION_SECRET\`: long random secret (at least 32 random bytes).
 - \`DASHBOARD_DEVELOPER_IDS\`: optional comma-separated Discord user IDs for additional dashboard developers. The existing maker owner is included automatically.
 
-The application also needs its existing bot environment variables, including \`BOT_TOKENS\`, \`TOKEN_ENCRYPTION_KEY\`, and any configured main bot tokens.
+The application also needs its existing bot environment variables, including `BOT_TOKENS`, `TOKEN_ENCRYPTION_KEY`, and any configured main bot tokens. The entry point loads `.env` with dotenv and listens on `PORT`, then `SERVER_PORT`, then `2022` as a fallback; set the port allocated by your hosting panel.
 
 ## Current dashboard routes
 
