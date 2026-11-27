@@ -265,6 +265,44 @@ function setupDashboard(app, { bots, db }) {
     }
   });
 
+  app.get("/dashboard/api/access", requireUser, async (req, res) => {
+    try {
+      const guildId = String(req.query.guildId || "");
+      const mode = req.query.mode === "premium" ? "premium" : "normal";
+      const botId = String(req.query.botId || "");
+      if (!/^\d{17,20}$/.test(guildId)) return json(res, 400, { error: "معرّف السيرفر غير صالح." });
+      const bot = getBot(botId);
+      if (!bot || !bot.isReady()) return json(res, 404, { error: "البوت غير متاح حالياً." });
+      const guild = bot.guilds.cache.get(guildId);
+      if (!guild) return json(res, 403, { error: "البوت غير موجود في هذا السيرفر." });
+      const developer = isDeveloper(req.session.user.id);
+      if (mode === "premium") {
+        const records = await getAllPremiumRecords();
+        const allowed = records.some(record =>
+          record.guildId === guildId &&
+          record.botId === botId &&
+          (developer || record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id)
+        );
+        if (!allowed) return json(res, 403, { error: "هذا السيرفر غير مرتبط باشتراك Premium نشط لحسابك." });
+      } else {
+        const records = await getAllPremiumRecords();
+        const isPremiumBot = records.some(record => record.botId === botId);
+        if (bot.user.id === maker.MAKER_BOT_ID || isPremiumBot) return json(res, 403, { error: "هذا البوت ليس ضمن البوتات العادية." });
+        if (!developer) {
+          const userGuilds = await getUserGuilds(req);
+          const membership = userGuilds.find(item => item.id === guildId);
+          if (!membership || !hasGuildManagement(membership.permissions, membership.owner)) {
+            return json(res, 403, { error: "لا توجد صلاحية لإدارة هذا السيرفر." });
+          }
+        }
+      }
+      json(res, 200, { allowed: true, guild: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }) }, bot: { id: bot.user.id, username: bot.user.username }, developer });
+    } catch (error) {
+      console.error("[Dashboard access check]", error.message);
+      json(res, 502, { error: "تعذر التحقق من صلاحيات السيرفر." });
+    }
+  });
+
   app.get("/dashboard/api/premium", requireUser, async (req, res) => {
     try {
       const records = await getAllPremiumRecords();
