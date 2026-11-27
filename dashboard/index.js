@@ -303,6 +303,11 @@ function setupDashboard(app, { bots, db }) {
       const developer = isDeveloper(req.session.user.id);
       if (mode === "developer") {
         if (!developer) return json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
+        const userGuilds = await getUserGuilds(req);
+        const membership = userGuilds.find(item => item.id === guildId);
+        if (!membership || !hasGuildManagement(membership.permissions, membership.owner)) {
+          return json(res, 403, { error: "لا توجد صلاحية لإدارة هذا السيرفر." });
+        }
       } else if (mode === "premium") {
         const records = await getAllPremiumRecords();
         const allowed = records.some(record =>
