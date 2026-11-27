@@ -438,7 +438,7 @@ function setupDashboard(app, { bots, db }) {
     const [key, type] = spec;
     if (section === "auto" && key === "auto_mention_reset") {
       const cfg = await db.get(key + "_" + guildId) || {};
-      return type === "resetDays" ? (cfg.days || 0) :
+      return type === "resetDays" ? (cfg.days || "") :
         type === "resetRoom" ? (cfg.roomId || "") :
         type === "resetMessage" ? (cfg.message || "") : (cfg.type || "");
     }
@@ -579,13 +579,19 @@ function setupDashboard(app, { bots, db }) {
           const resetKey = key + "_" + access.guildId;
           const cfg = await db.get(resetKey) || {};
           if (type === "resetDays") {
-            const n = Number(value);
-            if (!Number.isInteger(n) || n < 1 || n > 365) return json(res, 400, { error: "مدة الريست يجب أن تكون بين 1 و365 يوم." });
-            cfg.days = n;
-            if (!cfg.lastReset) cfg.lastReset = Date.now();
+            if (value === "" || value === null) delete cfg.days;
+            else {
+              const n = Number(value);
+              if (!Number.isInteger(n) || n < 1 || n > 365) return json(res, 400, { error: "مدة الريست يجب أن تكون بين 1 و365 يوم." });
+              cfg.days = n;
+              if (!cfg.lastReset) cfg.lastReset = Date.now();
+            }
           } else if (type === "resetRoom") {
-            if (!snowflake(value) || !access.guild.channels.cache.has(value) || ![0,5].includes(access.guild.channels.cache.get(value).type)) return json(res, 400, { error: "روم الريست غير صالح." });
-            cfg.roomId = value;
+            if (value === "" || value === null) delete cfg.roomId;
+            else {
+              if (!snowflake(value) || !access.guild.channels.cache.has(value) || ![0,5].includes(access.guild.channels.cache.get(value).type)) return json(res, 400, { error: "روم الريست غير صالح." });
+              cfg.roomId = value;
+            }
           } else if (type === "resetMessage") {
             cfg.message = String(value || "").slice(0, 1800);
           } else {
