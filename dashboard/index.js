@@ -228,20 +228,22 @@ function setupDashboard(app, { bots, db }) {
 
   app.get("/dashboard/api/guilds", requireUser, async (req, res) => {
     try {
-      const mode = req.query.mode === "premium" ? "premium" : "normal";
+      const requestedMode = String(req.query.mode || "normal");
+      const mode = requestedMode === "premium" ? "premium" : requestedMode === "developer" ? "developer" : "normal";
       const developer = isDeveloper(req.session.user.id);
       const records = await getAllPremiumRecords();
+      if (mode === "developer") {
+        if (!developer) return json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
+        const developerGuilds = bots.filter(client => client.user && client.isReady()).flatMap(client =>
+          [...client.guilds.cache.values()].map(guild => ({
+            id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }),
+            botId: client.user.id, botName: client.user.username, status: "manage",
+            plan: records.some(record => record.botId === client.user.id && record.guildId === guild.id) ? "Premium" : "Developer"
+          }))
+        );
+        return json(res, 200, { mode, guilds: developerGuilds, developer: true });
+      }
       if (mode === "premium") {
-        if (isDeveloper(req.session.user.id)) {
-          const developerGuilds = bots.filter(client => client.user && client.isReady()).flatMap(client =>
-            [...client.guilds.cache.values()].map(guild => ({
-              id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }),
-              botId: client.user.id, botName: client.user.username, status: "available",
-              plan: records.some(record => record.botId === client.user.id && record.guildId === guild.id) ? "Premium" : "Developer"
-            }))
-          );
-          return json(res, 200, { mode, guilds: developerGuilds, developer: true });
-        }
         const owned = records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
         const guilds = owned.map(record => {
           const bot = getBot(record.botId);
@@ -255,7 +257,7 @@ function setupDashboard(app, { bots, db }) {
       const botId = String(req.query.botId || "");
       const bot = getBot(botId);
       const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
-      if (!bot || bot.user.id === maker.MAKER_BOT_ID || premiumBotIds.has(bot.user.id)) {
+      if (!bot || (!developer && (bot.user.id === maker.MAKER_BOT_ID || premiumBotIds.has(bot.user.id)))) {
         return json(res, 400, { error: "البوت العادي المحدد غير متاح." });
       }
       if (!developer && await getBotOwnerId(bot) !== req.session.user.id) {
@@ -297,7 +299,8 @@ function setupDashboard(app, { bots, db }) {
   app.get("/dashboard/api/access", requireUser, async (req, res) => {
     try {
       const guildId = String(req.query.guildId || "");
-      const mode = req.query.mode === "premium" ? "premium" : "normal";
+      const requestedMode = String(req.query.mode || "normal");
+      const mode = requestedMode === "premium" ? "premium" : requestedMode === "developer" ? "developer" : "normal";
       const botId = String(req.query.botId || "");
       if (!/^\d{17,20}$/.test(guildId)) return json(res, 400, { error: "معرّف السيرفر غير صالح." });
       const bot = getBot(botId);
@@ -305,9 +308,11 @@ function setupDashboard(app, { bots, db }) {
       const guild = bot.guilds.cache.get(guildId);
       if (!guild) return json(res, 403, { error: "البوت غير موجود في هذا السيرفر." });
       const developer = isDeveloper(req.session.user.id);
-      if (mode === "premium") {
+      if (mode === "developer") {
+        if (!developer) return json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
+      } else if (mode === "premium") {
         const records = await getAllPremiumRecords();
-        const allowed = developer || records.some(record =>
+        const allowed = records.some(record =>
           record.guildId === guildId &&
           record.botId === botId &&
           (record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id)
@@ -386,7 +391,8 @@ function setupDashboard(app, { bots, db }) {
   async function resolveWorkspace(req, res, input) {
     const guildId = String(input.guildId || "");
     const botId = String(input.botId || "");
-    const mode = input.mode === "premium" ? "premium" : "normal";
+    const requestedMode = String(input.mode || "normal");
+    const mode = requestedMode === "premium" ? "premium" : requestedMode === "developer" ? "developer" : "normal";
     if (!snowflake(guildId) || !snowflake(botId)) {
       json(res, 400, { error: "معرّف السيرفر أو البوت غير صالح." });
       return null;
@@ -402,9 +408,14 @@ function setupDashboard(app, { bots, db }) {
       return null;
     }
     const developer = isDeveloper(req.session.user.id);
-    if (mode === "premium") {
+    if (mode === "developer") {
+      if (!developer) {
+        json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
+        return null;
+      }
+    } else if (mode === "premium") {
       const records = await getAllPremiumRecords();
-      const allowed = developer || records.some(record => record.guildId === guildId && record.botId === botId &&
+      const allowed = records.some(record => record.guildId === guildId && record.botId === botId &&
         (record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id));
       if (!allowed) {
         json(res, 403, { error: "السيرفر غير مرتبط باشتراك Premium نشط لحسابك." });
