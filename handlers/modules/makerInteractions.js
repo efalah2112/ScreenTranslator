@@ -1,20 +1,5 @@
-const maker = require('./maker');
-
-module.exports = (client, deps) => {
-    client.on('interactionCreate', async (interaction) => {
-        // ===== MAKER INTERACTIONS =====
-        if (maker.isMakerCommand(interaction.commandName) || 
-            (interaction.isButton() && (
-                interaction.customId === 'add_token' ||
-                interaction.customId === 'delete_token' ||
-                interaction.customId === 'show_tokens' ||
-                interaction.customId === 'change_ownership' ||
-                interaction.customId === 'shutdown' ||
-                interaction.customId === 'restart' ||
-                interaction.customId.startsWith('delete_token_')
-            )) ||
-            interaction.isModalSubmit()) {
-            return await maker.handleMakerInteraction(interaction, client, deps.config, deps.db, require('fs'));
-        }
-    });
-};
+// Maker interactions are dispatched centrally from index.js.
+// Registering a second interactionCreate listener here caused every
+// interaction to call the non-existent maker.isMakerCommand method.
+// Keep this module as a no-op because handlers/interactions.js still loads it.
+module.exports = function registerMakerInteractions() {};
