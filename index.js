@@ -3,7 +3,7 @@ const app = express();
 const port = 2022;
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.redirect("/dashboard");
 });
 
 const fs = require("fs");
