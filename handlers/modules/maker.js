@@ -731,6 +731,7 @@ async function handlePremiumBuyModal(i, db, client) {
         days,
         channelId: ticketChannel.id,
         timestamp: Date.now(),
+        status: 'awaiting_payment',
     };
     await db.set(`premium_temp_${i.user.id}`, tempData);
 
@@ -745,74 +746,51 @@ async function handlePremiumBuyModal(i, db, client) {
         components: [createPremiumTicketCancelButton()],
     });
 
-    const filter = (m) =>
-        m.author.id === settings.bankId &&
-        m.content.includes(i.user.id) &&
-        m.content.includes(price.toString());
-
+    // Payment notifications are not machine-verifiable without the bank's documented
+    // receipt format. Never activate Premium from substring matches; queue for owner review.
+    const filter = (m) => m.author.id === settings.bankId;
     const collector = ticketChannel.createMessageCollector({ filter, max: 1, time: 600000 });
 
     collector.on('collect', async (msg) => {
         const tempData2 = await db.get(`premium_temp_${i.user.id}`);
-        if (!tempData2) return;
+        if (!tempData2 || tempData2.status !== 'awaiting_payment') return;
 
-        let premiumData;
-        try {
-            premiumData = { ...tempData2, botToken: tokenVault.decryptToken(tempData2.botTokenEncrypted) };
-            delete premiumData.botTokenEncrypted;
-        } catch (error) {
-            console.error('[Security] تعذر فك تشفير توكن طلب Premium:', error.message);
-            await ticketChannel.send('❌ تعذر التحقق من بيانات البوت بشكل آمن. يرجى التواصل مع الإدارة.');
+        const usedMessage = await db.get(`premium_payment_message_${msg.id}`);
+        if (usedMessage) {
+            await ticketChannel.send('⚠️ تم تسجيل رسالة التحويل هذه مسبقاً، ولن تُستخدم مرة أخرى.');
             return;
         }
-        const userData = await addPremiumUser(i.user.id, premiumData, db, client);
 
-        const confirmEmbed = new EmbedBuilder()
-            .setTitle(' تم تأكيد الدفع بنجاح!')
-            .setDescription('تم تفعيل اشتراك البريميوم الخاص بك، سيتم إغلاق هذا التكت تلقائياً.')
+        tempData2.status = 'pending_review';
+        tempData2.paymentMessageId = msg.id;
+        tempData2.paymentDetectedAt = Date.now();
+        await db.set(`premium_temp_${i.user.id}`, tempData2);
+
+        const reviewEmbed = new EmbedBuilder()
+            .setTitle('⏳ دفعة بانتظار المراجعة اليدوية')
+            .setDescription('وصلت رسالة من حساب البنك المحدد. لم يتم تفعيل الاشتراك تلقائياً؛ يجب على مالك النظام مراجعة إشعار البنك والتحقق من المبلغ والمستفيد والمرجع قبل الاعتماد.')
             .addFields(
-                { name: ' المستخدم', value: `<@${userData.userId}>`, inline: true },
-                { name: ' الخطة', value: plan.label, inline: true },
-                { name: ' تاريخ الانتهاء', value: `<t:${Math.floor(userData.endDate / 1000)}:F>`, inline: true },
+                { name: 'المشتري', value: `<@${i.user.id}> | \`${i.user.id}\``, inline: true },
+                { name: 'المبلغ المتوقع', value: `${price} كردت`, inline: true },
+                { name: 'رسالة البنك', value: `\`${msg.id}\``, inline: true },
             )
-            .setColor(0x00ff00)
+            .setColor(0xffaa00)
             .setTimestamp();
 
-        await ticketChannel.send({ embeds: [confirmEmbed] });
-
-        try {
-            const member = await i.guild.members.fetch(i.user.id);
-            await member.roles.add(settings.premiumRoleId);
-        } catch (err) {}
-
-        const logChannel = client.channels.cache.get(settings.logChannelId);
-        if (logChannel) {
-            const logEmbed = new EmbedBuilder()
-                .setTitle(' اشتراك بريميوم جديد')
-                .setColor(0x00ff00)
-                .addFields(
-                    { name: 'المستخدم', value: `<@${i.user.id}>`, inline: true },
-                    { name: ' الخطة', value: plan.label, inline: true },
-                    { name: ' المبلغ', value: `${price} كردت`, inline: true },
-                    { name: ' ايدي البوت', value: botId, inline: true },
-                    { name: ' ايدي السيرفر', value: guildId, inline: true },
-                    { name: ' تاريخ الانتهاء', value: `<t:${Math.floor(userData.endDate / 1000)}:F>`, inline: true },
-                )
-                .setTimestamp();
-            logChannel.send({ embeds: [logEmbed] }).catch(() => {});
-        }
-
-        await db.delete(`premium_temp_${i.user.id}`);
-        await closePremiumTicket(ticketChannel, i.user.id, db);
+        const reviewRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`premium_payment_approve_${i.user.id}`).setLabel('اعتماد بعد التحقق').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`premium_payment_reject_${i.user.id}`).setLabel('رفض الدفعة').setStyle(ButtonStyle.Danger),
+        );
+        await ticketChannel.send({ embeds: [reviewEmbed], components: [reviewRow] });
     });
 
     collector.on('end', async (collected) => {
         if (collected.size === 0) {
             const tempData3 = await db.get(`premium_temp_${i.user.id}`);
-            if (tempData3) {
-                await ticketChannel.send('⏰ انتهى الوقت، لم يتم استلام الدفع. سيتم إغلاق التكت.').catch(() => {});
-                await db.delete(`premium_temp_${i.user.id}`);
-                await closePremiumTicket(ticketChannel, i.user.id, db);
+            if (tempData3 && tempData3.status === 'awaiting_payment') {
+                await ticketChannel.send('⏰ انتهت مهلة استقبال إشعار البنك. لم يتم تفعيل الاشتراك؛ تواصل مع الإدارة إذا حولت المبلغ.').catch(() => {});
+                tempData3.status = 'expired';
+                await db.set(`premium_temp_${i.user.id}`, tempData3);
             }
         }
     });
@@ -1013,6 +991,83 @@ async function handleMakerInteraction(i, client, config, db, fs) {
             case 'transfer-ownership': return await handleTransferOwnership(i, db);
             case 'premium-list': return await handlePremiumList(i, db);
         }
+    }
+
+    if (i.isButton() && (i.customId.startsWith('premium_payment_approve_') || i.customId.startsWith('premium_payment_reject_'))) {
+        if (i.user.id !== MAKER_OWNER_ID) {
+            return i.reply({ content: '❌ اعتماد الدفعات ورفضها مخصص لمالك النظام فقط.', ephemeral: true });
+        }
+        const approve = i.customId.startsWith('premium_payment_approve_');
+        const targetUserId = i.customId.slice(approve ? 'premium_payment_approve_'.length : 'premium_payment_reject_'.length);
+        const pending = await db.get(`premium_temp_${targetUserId}`);
+        if (!pending || pending.status !== 'pending_review' || !pending.paymentMessageId) {
+            return i.reply({ content: '❌ لا توجد دفعة معلقة صالحة لهذا الطلب.', ephemeral: true });
+        }
+
+        if (!approve) {
+            pending.status = 'rejected';
+            pending.reviewedBy = i.user.id;
+            pending.reviewedAt = Date.now();
+            await db.set(`premium_temp_${targetUserId}`, pending);
+            await i.update({ content: 'تم رفض الدفعة. لم يتم تفعيل الاشتراك.', embeds: [], components: [] });
+            return;
+        }
+
+        const consumed = await db.get(`premium_payment_message_${pending.paymentMessageId}`);
+        if (consumed) {
+            return i.reply({ content: '❌ رسالة البنك هذه سبق استخدامها ولا يمكن اعتمادها مرة أخرى.', ephemeral: true });
+        }
+
+        let botToken;
+        try {
+            botToken = tokenVault.decryptToken(pending.botTokenEncrypted);
+        } catch (error) {
+            console.error('[Security] تعذر فك تشفير توكن طلب Premium:', error.message);
+            return i.reply({ content: '❌ تعذر فك تشفير بيانات الطلب. لم يتم تفعيل الاشتراك.', ephemeral: true });
+        }
+
+        const premiumData = { ...pending, botToken };
+        delete premiumData.botTokenEncrypted;
+        const userData = await addPremiumUser(targetUserId, premiumData, db, client);
+        await db.set(`premium_payment_message_${pending.paymentMessageId}`, {
+            userId: targetUserId,
+            approvedBy: i.user.id,
+            approvedAt: Date.now(),
+        });
+        pending.status = 'approved';
+        pending.reviewedBy = i.user.id;
+        pending.reviewedAt = Date.now();
+        await db.set(`premium_temp_${targetUserId}`, pending);
+
+        const settings = await db.get('premium_settings');
+        if (settings) {
+            try {
+                const guild = await client.guilds.fetch(pending.guildId);
+                const member = await guild.members.fetch(targetUserId);
+                await member.roles.add(settings.premiumRoleId);
+            } catch (error) {
+                console.error('[Premium] تعذر إضافة رتبة Premium بعد الاعتماد:', error.message);
+            }
+            const logChannel = await client.channels.fetch(settings.logChannelId).catch(() => null);
+            if (logChannel) {
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('اشتراك بريميوم معتمد يدوياً')
+                    .setColor(0x00ff00)
+                    .addFields(
+                        { name: 'المستخدم', value: `<@${targetUserId}>`, inline: true },
+                        { name: 'الخطة', value: pending.planLabel, inline: true },
+                        { name: 'المبلغ', value: `${pending.price} كردت`, inline: true },
+                        { name: 'معتمد بواسطة', value: `<@${i.user.id}>`, inline: true },
+                    )
+                    .setTimestamp();
+                await logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+            }
+        }
+
+        await i.update({ content: `✅ تم اعتماد الدفعة يدوياً وتفعيل الاشتراك. ينتهي في <t:${Math.floor(userData.endDate / 1000)}:F>.`, embeds: [], components: [] });
+        await db.delete(`premium_temp_${targetUserId}`);
+        await closePremiumTicket(i.channel, targetUserId, db);
+        return;
     }
 
     if (i.isButton()) {
