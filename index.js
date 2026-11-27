@@ -2596,6 +2596,9 @@ const bots = botTokens.map((token, index) => {
   return client;
 });
 
+// ========== WEB DASHBOARD ==========
+require("./dashboard")(app, { bots, db, config });
+
 app.listen(port, () => {
   console.log(`🌐 Server running on port ${port}`);
 });
