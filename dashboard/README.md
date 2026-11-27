@@ -36,6 +36,15 @@ Sessions are stored server-side in SQLite; the browser receives only an HTTP-onl
 - Premium: only the guild attached to the user's active Premium subscription is listed.
 - Developer: the maker owner and IDs configured in \`DASHBOARD_DEVELOPER_IDS\` can inspect all normal-bot guilds and active Premium subscriptions without Discord guild permissions.
 
-## Implementation status
+## Connected dashboard features
 
-The first dashboard milestone provides the visual shell, Discord OAuth, secure server-side sessions, bot selection, normal/Premium server selection, permission states, and invite links. Settings pages are intentionally marked as not yet connected until each control is wired to the bot's actual QuickDB keys and protected server-side by the same guild authorization rules. No fake save buttons are exposed.
+- `GET /dashboard/api/workspace?guildId=...&botId=...&mode=normal|premium`: reads live QuickDB settings, guild text/category channels, roles, recent log-channel messages, and dashboard audit entries.
+- `POST /dashboard/api/workspace`: validates and saves whitelisted ticket, application, automation, appearance, and role settings into the same QuickDB keys used by the bot.
+- `POST /dashboard/api/panels`: sends real Discord ticket, support, or application panels using the existing interaction custom IDs handled by the bot.
+- Ticket settings map to existing keys such as `logs_`, `orderroom_`, `auctionroom_`, `catbuy_*`, `shopad_`, `orderad_`, and `support_*`.
+- Application settings map to `apply_room_`, `apply_type_`, `apply_roles_`, `apply_admin_`, `apply_ticketcat_`, `apply_qs_`, and `apply_disabled_`.
+- Automation settings map to the existing forbidden-word, warning, tax/emoji-channel, shortcut, and auto-mention-reset keys.
+- Appearance settings map to `embed_color_` and `image_`. Role settings update the existing role IDs consumed by bot handlers.
+- Each save and panel publication is recorded in `dashboard_audit_<guildId>`; the logs page also reads the configured Discord log channel.
+
+All write endpoints repeat bot/guild/subscription authorization on the server and validate channel/role IDs against the selected guild. The GitHub syntax workflow does not replace live Discord testing: confirm the bot has permission to view channels, send messages, embed links, and use components before relying on panel publication.
