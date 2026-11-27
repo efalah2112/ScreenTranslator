@@ -28,6 +28,11 @@ const sqliteDriver = new SqliteDriver("./database.sqlite");
 const db = QuickDB.createSingleton({ driver: sqliteDriver });
 
 const config = require("./config.json");
+const tokenVault = require("./handlers/modules/tokenVault");
+
+// Decrypt the bot token vault at startup; legacy plaintext tokens are migrated
+// automatically once TOKEN_ENCRYPTION_KEY is configured.
+config.tokens = tokenVault.loadTokens(config);
 
 // ========== MAKER SYSTEM ==========
 const maker = require("./handlers/modules/maker");
