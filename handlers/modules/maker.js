@@ -273,8 +273,8 @@ const makerCommands = [
         default_member_permissions: 8,
         options: [
             {
-                name: 'bot-token',
-                description: 'توكن البوت المراد نقله',
+                name: 'bot-id',
+                description: 'ايدي البوت المراد نقل ملكيته',
                 type: ApplicationCommandOptionType.String,
                 required: true,
             },
@@ -298,6 +298,12 @@ const makerCommandNames = [
     'add-token', 'remove-token', 'panel', 'status', 'set-activity', 'set-username', 'bot-avatar',
     'setup-premium', 'premium-panel', 'my-premium', 'renew-premium', 'transfer-ownership', 'premium-list',
 ];
+
+// Commands that change bot-wide settings or manage subscriptions are owner-only.
+const OWNER_ONLY_COMMANDS = new Set([
+    'add-token', 'remove-token', 'panel', 'status', 'set-activity', 'set-username',
+    'bot-avatar', 'setup-premium', 'premium-panel', 'transfer-ownership', 'premium-list',
+]);
 
 // ============================================
 // ===== الإمبدات والتصميم =====
@@ -832,14 +838,14 @@ async function handleRenewPremium(i, db) {
 }
 
 async function handleTransferOwnership(i, db) {
-    const botToken = i.options.getString('bot-token');
+    const botId = i.options.getString('bot-id');
     const newOwner = i.options.getUser('new-owner');
 
     const allKeys = await db.all();
-    const targetKey = allKeys.find(k => k.id.startsWith('premium_user_') && k.value.botToken === botToken);
+    const targetKey = allKeys.find(k => k.id.startsWith('premium_user_') && k.value.botId === botId);
 
     if (!targetKey) {
-        return i.reply({ content: '❌ لم يتم العثور على اشتراك مرتبط بهذا التوكن.', ephemeral: true });
+        return i.reply({ content: '❌ لم يتم العثور على اشتراك مرتبط بمعرّف البوت.', ephemeral: true });
     }
 
     const userData = targetKey.value;
@@ -986,6 +992,10 @@ async function handleExpiredSubscription(userId, db, client) {
 // ============================================
 
 async function handleMakerInteraction(i, client, config, db, fs) {
+    if (i.isChatInputCommand() && OWNER_ONLY_COMMANDS.has(i.commandName) && i.user.id !== MAKER_OWNER_ID) {
+        return i.reply({ content: '❌ هذا الأمر مخصص لمالك البوت فقط.', ephemeral: true });
+    }
+
     if (i.isChatInputCommand()) {
         switch (i.commandName) {
             case 'add-token': return await handleAddToken(i, config, fs);
@@ -1010,7 +1020,10 @@ async function handleMakerInteraction(i, client, config, db, fs) {
             case 'premium_buy_monthly':
             case 'premium_buy_3months': return await handlePremiumPlanSelection(i, db);
             case 'premium_my_subscription': return await handleMyPremium(i, db);
-            case 'premium_renew': return await handleRenewPremium(i, db);
+            case 'premium_renew':
+            case 'premium_renew_btn': return await handleRenewPremium(i, db);
+            case 'premium_invoice':
+            case 'premium_invoice_btn': return await handleMyPremium(i, db);
             case 'premium_cancel': {
                 await i.reply({ content: '❌ تم إلغاء الطلب، سيتم إغلاق التكت.', ephemeral: true });
                 await db.delete(`premium_temp_${i.user.id}`);
@@ -1019,6 +1032,15 @@ async function handleMakerInteraction(i, client, config, db, fs) {
                 }
                 return;
             }
+        }
+
+        // Renewal notifications include the intended subscriber ID in the button ID.
+        if (i.customId.startsWith('premium_renew_')) {
+            const targetUserId = i.customId.slice('premium_renew_'.length);
+            if (targetUserId !== i.user.id) {
+                return i.reply({ content: '❌ زر التجديد هذا مخصص لصاحب الاشتراك.', ephemeral: true });
+            }
+            return await handleRenewPremium(i, db);
         }
     }
 
@@ -1031,19 +1053,36 @@ async function handleMakerInteraction(i, client, config, db, fs) {
 // ===== MAKER SETUP FUNCTION =====
 // ============================================
 
+// These hooks are called by index.js. Keep them defined even when no DM/error
+// notification channel is configured, so message events never throw TypeError.
+async function handleDMMessage(message, client) {
+    // No DM command workflow is currently implemented.
+}
+
+async function sendMakerError(client, title, error) {
+    console.error(`[Maker] ${title}:`, error);
+}
+
 function setupMakerSystem(client, bots, db, config, fs) {
     if (client.user.id === MAKER_BOT_ID) {
-        setInterval(() => {
-            checkAllPremiumExpiries(client, db);
-        }, 10 * 60 * 1000);
+        if (!client._premiumExpiryTimer) {
+            client._premiumExpiryTimer = setInterval(() => {
+                checkAllPremiumExpiries(client, db).catch((error) => {
+                    console.error('[Premium] فشل فحص انتهاء الاشتراكات:', error);
+                });
+            }, 10 * 60 * 1000);
+        }
     }
 }
 
 module.exports = {
     MAKER_BOT_ID,
     MAKER_OWNER_ID,
+    TARGET_GUILD_ID,
     makerCommandNames,
     makerCommands,
     handleMakerInteraction,
+    handleDMMessage,
+    sendMakerError,
     setupMakerSystem,
 };

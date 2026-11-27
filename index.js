@@ -2533,6 +2533,9 @@ const bots = botTokens.map((token, index) => {
     if (interaction.isButton()) {
       const [action, guildId] = interaction.customId.split("--");
       if (action === "leaveGuild") {
+        if (interaction.user.id !== botOwner) {
+          return interaction.reply({ content: "❌ هذا الإجراء مخصص لمالك البوت فقط.", ephemeral: true });
+        }
         const guild = client.guilds.cache.get(guildId);
         if (!guild) return interaction.reply({ content: "❌ لا يمكن العثور على هذا السيرفر.", ephemeral: true });
         try {
