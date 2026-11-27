@@ -409,6 +409,12 @@ function setupDashboard(app, { bots, db }) {
         json(res, 403, { error: "هذا القسم متاح للمبرمج فقط." });
         return null;
       }
+      const userGuilds = await getUserGuilds(req);
+      const membership = userGuilds.find(item => item.id === guildId);
+      if (!membership || !hasGuildManagement(membership.permissions, membership.owner)) {
+        json(res, 403, { error: "لا تملك صلاحية إدارة هذا السيرفر." });
+        return null;
+      }
     } else if (mode === "premium") {
       const records = await getAllPremiumRecords();
       const allowed = records.some(record => record.guildId === guildId && record.botId === botId &&
