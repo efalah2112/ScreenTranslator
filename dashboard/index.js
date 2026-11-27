@@ -207,9 +207,23 @@ function setupDashboard(app, { bots, db }) {
     res.status(204).end();
   }));
 
-  app.get("/dashboard/api/me", (req, res) => {
-    if (!req.session.user) return json(res, 200, { authenticated: false });
-    json(res, 200, { authenticated: true, user: req.session.user, developer: isDeveloper(req.session.user.id) });
+  app.get("/dashboard/api/me", requireUser, async (req, res) => {
+    try {
+      const userId = req.session.user.id;
+      const records = await getAllPremiumRecords();
+      const premiumAvailable = records.some(record =>
+        record.userId === userId || record.dashboardOwnerId === userId
+      );
+      json(res, 200, {
+        authenticated: true,
+        user: req.session.user,
+        developer: isDeveloper(userId),
+        premiumAvailable
+      });
+    } catch (error) {
+      console.error("[Dashboard account access]", error.message);
+      json(res, 503, { error: "تعذر التحقق من حالة اشتراك Premium. حاول تحديث الصفحة." });
+    }
   });
 
   app.get("/dashboard/api/bots", requireUser, async (req, res) => {
