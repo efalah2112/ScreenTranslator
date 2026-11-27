@@ -78,7 +78,7 @@ function setupDashboard(app, { bots, db }) {
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV !== "development",
+      // Match the cookie transport to the OAuth callback origin. On HTTPS deployments the cookie is secure; plain HTTP is only suitable for temporary testing and should be replaced with HTTPS.\n      secure: Boolean(redirectUri && redirectUri.startsWith("https://")),
       maxAge: 7 * 24 * 60 * 60 * 1000
     }
   }));
