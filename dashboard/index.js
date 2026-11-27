@@ -230,16 +230,28 @@ function setupDashboard(app, { bots, db }) {
 
   app.get("/dashboard/api/bots", requireUser, async (req, res) => {
     try {
-      const records = await getAllPremiumRecords();
-      const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
-      const normalBots = bots.filter(client => client.user && client.isReady() && (isDeveloper(req.session.user.id) || (client.user.id !== maker.MAKER_BOT_ID && !premiumBotIds.has(client.user.id))));
-      const visibleBots = [];
-      for (const client of normalBots) {
-        const ownerId = await getBotOwnerId(client);
-        if (isDeveloper(req.session.user.id) || ownerId === req.session.user.id) visibleBots.push(client);
+      const developer = isDeveloper(req.session.user.id);
+      // Developer bot listing must not depend on the Premium database.
+      // This keeps the developer workspace available even if Premium records are temporarily unavailable.
+      let availableBots = bots.filter(client => client.user && client.isReady());
+      if (developer) {
+        availableBots = availableBots.filter(client => client.user.id !== maker.MAKER_BOT_ID);
+      } else {
+        const records = await getAllPremiumRecords();
+        const premiumBotIds = new Set(records.map(record => record.botId).filter(Boolean));
+        availableBots = availableBots.filter(client => client.user.id !== maker.MAKER_BOT_ID && !premiumBotIds.has(client.user.id));
+        const visibleBots = [];
+        for (const client of availableBots) {
+          const ownerId = await getBotOwnerId(client);
+          if (ownerId === req.session.user.id) visibleBots.push(client);
+        }
+        availableBots = visibleBots;
       }
-      json(res, 200, { bots: visibleBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 96 }), guildCount: client.guilds.cache.size })) });
-    } catch (error) { json(res, 500, { error: "تعذر تحميل البوتات." }); }
+      json(res, 200, { bots: availableBots.map(client => ({ id: client.user.id, username: client.user.username, avatar: client.user.displayAvatarURL({ size: 96 }), guildCount: client.guilds.cache.size })) });
+    } catch (error) {
+      console.error("[Dashboard bot list]", error && (error.stack || error.message) || error);
+      json(res, 500, { error: "تعذر تحميل البوتات. راجع سجل الاستضافة لمعرفة سبب الخطأ." });
+    }
   });
 
   app.get("/dashboard/api/guilds", requireUser, async (req, res) => {
