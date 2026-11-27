@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>ScreenTranslator | Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/dashboard/assets/style.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <header class="topbar">
+    <a class="brand" href="/dashboard"><span class="brand-mark">ST</span><span><b>ScreenTranslator</b><small>CONTROL CENTER</small></span></a>
+    <div class="top-actions"><span class="live-dot"></span><span class="status-label">جميع الأنظمة تعمل</span><div id="user-chip" class="user-chip hidden"></div></div>
+  </header>
+  <main class="shell">
+    <section id="login-view" class="login-view hidden">
+      <div class="hero-copy">
+        <span class="eyebrow"><i></i> تحكم أذكى • تجربة أسرع</span>
+        <h1>كل أدوات بوتك،<br><em>في مكان واحد.</em></h1>
+        <p>لوحة تحكم متكاملة لإدارة بوتاتك وسيرفراتك. اختر نوع البوت، حدّد السيرفر، وتحكم بإعداداتك من واجهة واحدة.</p>
+        <a class="discord-button" href="/dashboard/login"><span class="discord-symbol">◈</span> تسجيل الدخول عبر Discord <span>←</span></a>
+        <div class="trust-row"><span>● تسجيل آمن عبر Discord</span><span>● صلاحيات حسب حسابك</span></div>
+      </div>
+      <div class="hero-art">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="glass-card main-glass"><div class="glass-head"><span>SERVER OVERVIEW</span><b>● LIVE</b></div><div class="fake-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="glass-foot"><span>إدارة مركزية</span><strong>01 / 04</strong></div></div>
+        <div class="float-card float-top"><span class="float-icon purple">✦</span><div><b>تحكم كامل</b><small>إعدادات بوتك بسهولة</small></div></div>
+        <div class="float-card float-bottom"><span class="float-icon blue">⌘</span><div><b>سيرفراتك</b><small>كل شيء تحت سيطرتك</small></div></div>
+      </div>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <aside class="sidebar">
+        <div class="side-label">القائمة الرئيسية</div>
+        <button class="side-link active" data-page="overview"><span>◫</span> نظرة عامة</button>
+        <button class="side-link" data-page="tickets"><span>▤</span> نظام التكتات</button>
+        <button class="side-link" data-page="applications"><span>▣</span> التقديمات</button>
+        <button class="side-link" data-page="auto"><span>⌁</span> الأنظمة التلقائية</button>
+        <button class="side-link" data-page="appearance"><span>◈</span> المظهر والرسائل</button>
+        <button class="side-link" data-page="permissions"><span>♙</span> الصلاحيات</button>
+        <button class="side-link" data-page="logs"><span>≋</span> السجلات</button>
+        <div class="sidebar-bottom"><div class="support-box"><b>تحتاج مساعدة؟</b><p>تابع حالة البوت أو تواصل مع الدعم.</p><span>مركز المساعدة ↗</span></div><button id="logout" class="logout">↪ تسجيل الخروج</button></div>
+      </aside>
+      <div class="content">
+        <div class="content-top"><div><div class="breadcrumb">الرئيسية <span>/</span> <b id="crumb">نظرة عامة</b></div><h2 id="page-title">نظرة عامة</h2><p id="page-subtitle">أهلاً بك! هذه مساحة التحكم الخاصة ببوتك.</p></div><button id="change-server" class="ghost-button">⇄ تغيير السيرفر</button></div>
+        <div id="page-content"></div>
+      </div>
+    </section>
+
+    <section id="chooser" class="chooser hidden">
+      <div class="section-heading"><span class="eyebrow"><i></i> مساحة العمل</span><h1>ابدأ باختيار <em>نوع البوت</em></h1><p>حدد الباقة التي تريد إدارتها، وسنعرض لك السيرفرات المتاحة لحسابك.</p></div>
+      <div class="plan-grid">
+        <button class="plan-card" data-mode="normal"><span class="plan-icon normal-icon">⌘</span><span class="plan-tag">STANDARD</span><h3>البوت العادي</h3><p>إدارة البوتات العادية في السيرفرات التي تملك صلاحية إدارتها.</p><span class="plan-action">اختيار البوت العادي <b>←</b></span></button>
+        <button class="plan-card premium-card" data-mode="premium"><span class="plan-icon premium-icon">✦</span><span class="plan-tag">PREMIUM EXPERIENCE</span><h3>البوت Premium</h3><p>إدارة بوت Premium والسيرفر المرتبط باشتراكك النشط.</p><span class="plan-action">اختيار Premium <b>←</b></span></button>
+      </div>
+      <button id="back-login" class="text-button">العودة</button>
+    </section>
+
+    <section id="server-picker" class="picker hidden">
+      <div class="picker-heading"><div><span class="eyebrow"><i></i> اختيار السيرفر</span><h1 id="picker-title">اختر البوت والسيرفر</h1><p id="picker-description">السيرفرات التي يمكنك إدارتها ستظهر هنا.</p></div><button id="back-plans" class="ghost-button">← رجوع</button></div>
+      <div id="bot-select-wrap" class="bot-select-wrap hidden"><label for="bot-select">البوت العادي</label><select id="bot-select"></select></div>
+      <div id="guild-grid" class="guild-grid"></div>
+      <div id="picker-empty" class="empty-state hidden"><span>◇</span><h3>لا توجد سيرفرات متاحة</h3><p>تأكد من اشتراكك أو من إضافة البوت إلى السيرفر.</p></div>
+    </section>
+  </main>
+  <footer><span>© 2026 ScreenTranslator</span><span>صُممت لتمنحك تحكماً أسهل.</span></footer>
+  <script src="/dashboard/assets/app.js"></script>
+</body>
+</html>
