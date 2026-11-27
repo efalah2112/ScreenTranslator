@@ -307,10 +307,10 @@ function setupDashboard(app, { bots, db }) {
       const developer = isDeveloper(req.session.user.id);
       if (mode === "premium") {
         const records = await getAllPremiumRecords();
-        const allowed = records.some(record =>
+        const allowed = developer || records.some(record =>
           record.guildId === guildId &&
           record.botId === botId &&
-          (developer || record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id)
+          (record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id)
         );
         if (!allowed) return json(res, 403, { error: "هذا السيرفر غير مرتبط باشتراك Premium نشط لحسابك." });
       } else {
@@ -404,8 +404,8 @@ function setupDashboard(app, { bots, db }) {
     const developer = isDeveloper(req.session.user.id);
     if (mode === "premium") {
       const records = await getAllPremiumRecords();
-      const allowed = records.some(record => record.guildId === guildId && record.botId === botId &&
-        (developer || record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id));
+      const allowed = developer || records.some(record => record.guildId === guildId && record.botId === botId &&
+        (record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id));
       if (!allowed) {
         json(res, 403, { error: "السيرفر غير مرتبط باشتراك Premium نشط لحسابك." });
         return null;
