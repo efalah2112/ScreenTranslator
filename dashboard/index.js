@@ -232,9 +232,17 @@ function setupDashboard(app, { bots, db }) {
       const developer = isDeveloper(req.session.user.id);
       const records = await getAllPremiumRecords();
       if (mode === "premium") {
-        const owned = isDeveloper(req.session.user.id)
-        ? records
-        : records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
+        if (isDeveloper(req.session.user.id)) {
+          const developerGuilds = bots.filter(client => client.user && client.isReady()).flatMap(client =>
+            [...client.guilds.cache.values()].map(guild => ({
+              id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }),
+              botId: client.user.id, botName: client.user.username, status: "available",
+              plan: records.some(record => record.botId === client.user.id && record.guildId === guild.id) ? "Premium" : "Developer"
+            }))
+          );
+          return json(res, 200, { mode, guilds: developerGuilds, developer: true });
+        }
+        const owned = records.filter(record => record.userId === req.session.user.id || record.dashboardOwnerId === req.session.user.id);
         const guilds = owned.map(record => {
           const bot = getBot(record.botId);
           const guild = bot && bot.guilds.cache.get(record.guildId);
