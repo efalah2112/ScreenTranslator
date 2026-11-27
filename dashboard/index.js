@@ -65,7 +65,7 @@ function setupDashboard(app, { bots, db }) {
   const clientSecret = process.env.DASHBOARD_CLIENT_SECRET;
   const redirectUri = process.env.DASHBOARD_REDIRECT_URI;
   const sessionSecret = process.env.DASHBOARD_SESSION_SECRET;
-  const developerIds = new Set((process.env.DASHBOARD_DEVELOPER_IDS || "").split(",").map(x => x.trim()).filter(Boolean));
+  const developerIds = new Set([maker.MAKER_OWNER_ID, ...(process.env.DASHBOARD_DEVELOPER_IDS || "").split(",").map(x => x.trim()).filter(Boolean)]);
 
   if (!sessionSecret) console.warn("[Dashboard] Set DASHBOARD_SESSION_SECRET to enable secure sessions.");
   app.set("trust proxy", 1);
