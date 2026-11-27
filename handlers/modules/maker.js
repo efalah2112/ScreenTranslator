@@ -273,8 +273,8 @@ const makerCommands = [
         default_member_permissions: 8,
         options: [
             {
-                name: 'bot-token',
-                description: 'توكن البوت المراد نقله',
+                name: 'bot-id',
+                description: 'ايدي البوت المراد نقل ملكيته',
                 type: ApplicationCommandOptionType.String,
                 required: true,
             },
@@ -838,14 +838,14 @@ async function handleRenewPremium(i, db) {
 }
 
 async function handleTransferOwnership(i, db) {
-    const botToken = i.options.getString('bot-token');
+    const botId = i.options.getString('bot-id');
     const newOwner = i.options.getUser('new-owner');
 
     const allKeys = await db.all();
-    const targetKey = allKeys.find(k => k.id.startsWith('premium_user_') && k.value.botToken === botToken);
+    const targetKey = allKeys.find(k => k.id.startsWith('premium_user_') && k.value.botId === botId);
 
     if (!targetKey) {
-        return i.reply({ content: '❌ لم يتم العثور على اشتراك مرتبط بهذا التوكن.', ephemeral: true });
+        return i.reply({ content: '❌ لم يتم العثور على اشتراك مرتبط بمعرّف البوت.', ephemeral: true });
     }
 
     const userData = targetKey.value;
@@ -1065,9 +1065,13 @@ async function sendMakerError(client, title, error) {
 
 function setupMakerSystem(client, bots, db, config, fs) {
     if (client.user.id === MAKER_BOT_ID) {
-        setInterval(() => {
-            checkAllPremiumExpiries(client, db);
-        }, 10 * 60 * 1000);
+        if (!client._premiumExpiryTimer) {
+            client._premiumExpiryTimer = setInterval(() => {
+                checkAllPremiumExpiries(client, db).catch((error) => {
+                    console.error('[Premium] فشل فحص انتهاء الاشتراكات:', error);
+                });
+            }, 10 * 60 * 1000);
+        }
     }
 }
 
